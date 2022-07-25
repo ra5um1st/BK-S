@@ -175,7 +175,6 @@ namespace PngConverter.WPF.ViewModels
             formatConverted.Source = source;
             formatConverted.DestinationFormat = PixelFormats.Gray32Float;
             formatConverted.EndInit();
-            formatConverted.Freeze();
             return formatConverted;
         }
 
