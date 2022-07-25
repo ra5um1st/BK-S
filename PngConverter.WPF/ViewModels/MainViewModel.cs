@@ -1,16 +1,13 @@
 ﻿using Microsoft.Win32;
 using System;
-using System.Collections.Generic;
 using System.Diagnostics;
 using System.IO;
-using System.Text;
 using System.Threading;
 using System.Threading.Tasks;
 using System.Windows;
 using System.Windows.Input;
 using System.Windows.Media;
 using System.Windows.Media.Imaging;
-using System.Windows.Threading;
 using WPF.Core.Commands;
 using WPF.Core.ViewModels;
 
@@ -178,6 +175,7 @@ namespace PngConverter.WPF.ViewModels
             formatConverted.Source = source;
             formatConverted.DestinationFormat = PixelFormats.Gray32Float;
             formatConverted.EndInit();
+            formatConverted.Freeze();
             return formatConverted;
         }
 
