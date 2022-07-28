@@ -8,6 +8,7 @@ using System.Windows;
 using System.Windows.Input;
 using System.Windows.Media;
 using System.Windows.Media.Imaging;
+using System.Windows.Threading;
 using WPF.Core.Commands;
 using WPF.Core.ViewModels;
 
@@ -21,6 +22,8 @@ namespace PngConverter.WPF.ViewModels
             ConvertImageCommand = new DelegateCommandAsync(OnConvertImageCommandExecute, CanConvertImageCommandExecute);
             SaveConvertedImageCommand = new DelegateCommandAsync(OnSaveConvertedImageCommandExecute, CanSaveConvertedImageCommandExecute);
         }
+
+        private string _openedFile;
 
         #region Properties
 
@@ -94,8 +97,6 @@ namespace PngConverter.WPF.ViewModels
 
         #region Load Image Command
 
-        private PngBitmapDecoder _decoder;
-
         public ICommand SelectImageCommand { get; set; }
 
         private async Task OnSelectImageCommandExecute(object obj)
@@ -121,14 +122,17 @@ namespace PngConverter.WPF.ViewModels
 
             if (fileDialog.ShowDialog() == true)
             {
+                _openedFile = fileDialog.FileName;
                 IsImageLoading = true;
                 var timer = Stopwatch.StartNew();
 
-                await Task.Run(() =>
+                SelectedImage = await Task.Run(() =>
                 {
-                    _decoder = CreateDecoderPNG(fileDialog.FileName);
-                    SelectedImage = _decoder.Frames[0];
-                }).ConfigureAwait(false);
+                    var _decoder = CreateDecoderPNG(_openedFile);
+                    var cachedBitmap = new CachedBitmap(_decoder.Frames[0], BitmapCreateOptions.None, BitmapCacheOption.OnLoad);
+                    cachedBitmap.Freeze();
+                    return cachedBitmap;
+                });
 
                 timer.Stop();
                 IsImageLoading = false;
@@ -161,7 +165,12 @@ namespace PngConverter.WPF.ViewModels
             IsImageConverting = true;
             var timer = Stopwatch.StartNew();
 
-            ConvertedImage = await App.Current.Dispatcher.InvokeAsync(() => ConvertImageToGrayscalePNG(SelectedImage));
+            ConvertedImage = await App.Current.Dispatcher.InvokeAsync(() =>
+            { 
+                var convertedImage = ConvertImageToGrayscalePNG(SelectedImage);
+                convertedImage.Freeze();
+                return convertedImage;
+            });
 
             timer.Stop();
             IsImageConverting = false;
@@ -191,19 +200,27 @@ namespace PngConverter.WPF.ViewModels
 
         private async Task OnSaveConvertedImageCommandExecute(object obj)
         {
-            var saveDialog = new SaveFileDialog()
+            var fileDialog = new SaveFileDialog()
             {
                 Filter = "Images | *.png"
             };
 
-            if(saveDialog.ShowDialog() == true)
+            if(fileDialog.ShowDialog() == true)
             {
+                if(fileDialog.FileName == _openedFile)
+                {
+                    MessageBox.Show($"Невозможно сохранить изображение в файл c именем {_openedFile}, поскольку он открыт в программе.");
+                    return;
+                }
+
                 await Task.Run(() =>
                 {
-                    using (var stream = new FileStream(saveDialog.FileName, FileMode.Create))
+                    using (var stream = new FileStream(fileDialog.FileName, FileMode.Create))
                     {
                         var encoder = new PngBitmapEncoder();
-                        encoder.Frames.Add(BitmapFrame.Create(ConvertedImage));
+                        var frame = BitmapFrame.Create(ConvertedImage);
+                        frame.Freeze();
+                        encoder.Frames.Add(frame);
                         encoder.Save(stream);
                     }
                 });
